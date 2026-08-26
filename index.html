@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ten Clips</title>
+<meta name="description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and jump out to the real recording.">
+<meta name="theme-color" content="#171717">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ten Clips">
+<meta property="og:description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and jump out to the real recording.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.92em' font-size='92'>&#x1F3B8;</text></svg>">
+<style>
+  @property --a{ syntax:'<color>'; inherits:true; initial-value:#171717 }
+  @property --b{ syntax:'<color>'; inherits:true; initial-value:#3a3a3a }
+  :root{
+    --a:#171717; --b:#3a3a3a; --ink:#fff;
+    --pad:clamp(18px,3.4vw,44px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    color:var(--ink); padding:var(--pad) var(--pad) 104px;
+    font:15px/1.4 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(120% 90% at 15% 0%, var(--a) 0%, transparent 62%),
+      linear-gradient(160deg, var(--a) 0%, var(--b) 100%);
+    transition:--a .9s ease, --b .9s ease;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:radial-gradient(120% 90% at 15% 0%, var(--a), transparent 62%),
+               linear-gradient(160deg,var(--a),var(--b));
+    opacity:1; transition:opacity .8s;
+  }
+  header{display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; margin-bottom:clamp(16px,2.6vw,30px)}
+  /* below 940px the switches move above the dock, stacking ~116px of fixed
+     furniture over the grid — clear it */
+  @media (max-width:940px){ body{padding-bottom:152px} }
+  header h1{margin:0; font-size:clamp(28px,5vw,54px); font-weight:600; letter-spacing:-.035em}
+  header .sub{font-size:12px; letter-spacing:.2em; text-transform:uppercase; opacity:.6}
+
+  .grid{
+    display:grid; gap:clamp(10px,1.4vw,18px);
+    grid-template-columns:repeat(5,1fr);
+  }
+  @media (max-width:900px){ .grid{grid-template-columns:repeat(3,1fr)} }
+  @media (max-width:520px){ .grid{grid-template-columns:repeat(2,1fr)} }
+
+  .tile{
+    /* the grid item is .cell now, so the button has to fill it itself —
+       as a grid item it used to be stretched to the column */
+    display:block; width:100%;
+    position:relative; aspect-ratio:1; border:0; border-radius:18px; cursor:pointer;
+    color:#fff; overflow:hidden; padding:0; isolation:isolate;
+    transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, opacity .35s;
+    box-shadow:0 18px 34px -22px #000;
+  }
+  .tile::after{ /* soft grain / bloom */
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(80% 60% at 30% 20%, #ffffff40, transparent 70%);
+    mix-blend-mode:soft-light;
+  }
+  .tile:hover{transform:translateY(-4px) scale(1.015)}
+  .tile .n{
+    position:absolute; left:14px; bottom:10px; z-index:2; margin:0;
+    font-size:clamp(30px,4.2vw,56px); font-weight:600; letter-spacing:-.04em;
+    text-shadow:0 2px 20px #0006;
+  }
+  .tile .len{
+    position:absolute; left:13px; top:11px; z-index:2; font-size:11px; letter-spacing:.1em;
+    padding:3px 8px; border-radius:999px; background:#00000047;
+    font-variant-numeric:tabular-nums;
+  }
+  .tile .dial{
+    position:absolute; left:50%; top:50%; translate:-50% -50%; z-index:3;
+    width:clamp(60px,6.4vw,76px); height:clamp(60px,6.4vw,76px);
+    opacity:0; transition:opacity .3s; filter:drop-shadow(0 3px 10px #00000042);
+  }
+  .tile .dial .coin{fill:#fffffff0}
+  .tile .dial .bg{fill:none; stroke:#0000001f; stroke-width:2.6}
+  .tile .dial .fg{
+    fill:none; stroke:#15171d; stroke-width:2.6; stroke-linecap:round;
+    transform:rotate(-90deg); transform-origin:50% 50%;
+  }
+  .cell{position:relative; transition:opacity .35s}
+  .cell.on .tile{transform:scale(1.02); box-shadow:0 0 0 3px #ffffffcc, 0 26px 50px -24px #000}
+  .cell.on .dial{opacity:1}
+  body.playing .cell:not(.on){opacity:.5}
+  .cell.on.beat .tile::after{animation:pulse 1.8s ease-in-out infinite}
+
+  /* ---- Discovery mode: a link out to the real recording ---- */
+  .spot{
+    position:absolute; right:11px; bottom:11px; z-index:4;
+    width:34px; height:34px; border-radius:50%; place-items:center;
+    display:none; text-decoration:none;
+    background:#1db954; color:#04120a;
+    box-shadow:0 5px 16px -5px #000000a6, inset 0 0 0 1px #ffffff30;
+    transition:transform .18s, filter .18s;
+  }
+  body.discover .spot{display:grid}
+  .spot:hover{transform:scale(1.12)}
+  .spot svg{
+    width:20px; height:20px; fill:none;
+    stroke:currentColor; stroke-width:1.9; stroke-linecap:round;
+  }
+  .spot[aria-disabled="true"]{background:#ffffff30; color:#ffffffa8; cursor:not-allowed}
+  .spot[aria-disabled="true"]:hover{transform:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+
+  .switches{
+    position:fixed; right:18px; bottom:18px; z-index:6;
+    display:flex; flex-wrap:wrap; gap:8px;
+    align-items:center; justify-content:flex-end;
+    max-width:calc(100vw - 36px);
+  }
+  /* side by side they are ~265px wide, so they meet the centred dock sooner
+     than the stacked pair did — lift them over it below ~940px */
+  @media (max-width:940px){ .switches{bottom:96px} }   /* dock top edge is at 84px */
+  .tail{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 13px; border:0; border-radius:999px; cursor:pointer; color:#fff;
+    background:#0000004d; -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 10px 40px -14px #000, inset 0 0 0 1px #ffffff26;
+    font:inherit; font-size:12px; letter-spacing:.01em;
+  }
+  .tail .lbl{opacity:.66; transition:opacity .2s}
+  .tail.on .lbl{opacity:1}
+  .tail .sw{
+    width:34px; height:20px; border-radius:999px; background:#ffffff2b;
+    position:relative; transition:background .2s;
+  }
+  .tail .sw i{
+    position:absolute; top:3px; left:3px; width:14px; height:14px; border-radius:50%;
+    background:#fff; transition:translate .2s, background .2s;
+  }
+  .tail.on .sw{background:#ffffffdb}
+  .tail.on .sw i{translate:14px 0; background:#15171d}
+
+  /* ---- the oops screen ---- */
+  @media (max-width:520px){ .dock .t{display:none} }
+  @media (max-width:640px){
+    .dock{gap:10px; padding-left:14px}
+    .spot{width:40px; height:40px; right:10px; bottom:10px}
+    .spot svg{width:22px; height:22px}
+  }
+
+  body.crashed{
+    display:grid; place-items:center; padding:24px;
+    min-height:100vh; min-height:100dvh;   /* dvh: mobile browser chrome */
+  }
+  .oops{
+    max-width:660px; padding:clamp(26px,4vw,44px); border-radius:22px; text-align:left;
+    background:#00000047; -webkit-backdrop-filter:blur(16px) saturate(1.2); backdrop-filter:blur(16px) saturate(1.2);
+    box-shadow:0 24px 70px -26px #000, inset 0 0 0 1px #ffffff2b;
+  }
+  .oops .face{font-size:64px; line-height:1; animation:wobble 3.2s ease-in-out infinite; transform-origin:60% 80%}
+  @keyframes wobble{0%,100%{rotate:-9deg}50%{rotate:9deg}}
+  .oops h1{margin:16px 0 8px; font-size:clamp(24px,3.4vw,34px); font-weight:600; letter-spacing:-.03em}
+  .oops .sub{margin:0 0 22px; opacity:.72; font-size:15px}
+  .oops ul{list-style:none; margin:0 0 24px; padding:0; border-top:1px solid #ffffff26}
+  .oops li{
+    display:grid; grid-template-columns:34px minmax(0,auto) 1fr; gap:12px; align-items:baseline;
+    padding:11px 2px; border-bottom:1px solid #ffffff26;
+  }
+  @media (max-width:560px){ .oops li{grid-template-columns:34px 1fr} .oops li code{grid-column:2} .oops li span{grid-column:1/-1} }
+  .oops li em{font-style:normal; font-weight:700; font-size:12px; opacity:.6; letter-spacing:.08em}
+  .oops li code, .oops code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px}
+  .oops li code{background:#00000038; padding:2px 7px; border-radius:5px; white-space:nowrap}
+  .oops li span{font-size:14px; opacity:.9}
+  .oops li b{font-weight:600; opacity:1}
+  .oops .fix{margin:0; font-size:13.5px; opacity:.62}
+  .dock{
+    position:fixed; left:50%; bottom:18px; translate:-50% 0; z-index:5;
+    display:flex; align-items:center; gap:14px;
+    padding:10px 12px 10px 18px; border-radius:999px;
+    background:#0000004d; -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2);
+    box-shadow:0 10px 40px -14px #000, inset 0 0 0 1px #ffffff26;
+    max-width:calc(100vw - 32px);
+  }
+  .dock .meta{min-width:0; overflow:hidden}
+  .dock .meta b, .dock .meta span{
+    display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .dock .meta b{font-size:13px; font-weight:600; letter-spacing:-.01em}
+  .dock .meta span{font-size:11px; opacity:.62; letter-spacing:.04em}
+  .dock button{
+    appearance:none; border:0; cursor:pointer; color:#fff; background:#ffffff1f;
+    width:36px; height:36px; border-radius:50%; display:grid; place-content:center;
+    transition:background .15s;
+  }
+  .dock button:hover{background:#ffffff36}
+  .dock button.big{width:46px;height:46px;background:#fff;color:#111}
+  .dock button.big:hover{background:#e8e8e8}
+  .dock svg{width:15px;height:15px;fill:currentColor}
+  .dock button.big svg{width:19px;height:19px}
+  .dock .t{font:11px/1 ui-monospace,Menlo,monospace; opacity:.7; font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="site">Ten Clips</h1>
+  <span class="sub">tap a track</span>
+</header>
+
+<div class="grid" id="grid"></div>
+
+<div class="dock">
+  <div class="meta"><b id="d-title">Nothing playing</b><span id="d-file">pick any tile</span></div>
+  <span class="t"><span id="cur">0:00</span>/<span id="dur">0:00</span></span>
+  <button id="prev" title="Previous"><svg viewBox="0 0 24 24"><path d="M7 5h2v14H7zm3 7 9-7v14z"/></svg></button>
+  <button class="big" id="toggle" title="Play / pause"><svg id="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+  <button id="next" title="Next"><svg viewBox="0 0 24 24"><path d="M15 5h2v14h-2zM5 5l9 7-9 7z"/></svg></button>
+</div>
+
+<div class="switches">
+  <button class="tail" id="discover" role="switch" aria-checked="false"
+          title="Show a link to the real recording on each tile">
+    <span class="lbl">Discovery</span><span class="sw"><i></i></span>
+  </button>
+  <button class="tail" id="tail" role="switch" aria-checked="false"
+          title="Start every clip 3 seconds before its end">
+    <span class="lbl">Last 3s</span><span class="sw"><i></i></span>
+  </button>
+</div>
+
+<audio id="a"></audio>
+<script src="playlist.js"></script>
+<script>
+/* Refuses to run rather than playing something nonsensical. Called with the
+   load-time problems from playlist.js, or with one runtime problem from SEG. */
+function oops(problems, runtime){
+  const rows=problems.map(p=>
+    `<li><em>${p.n}</em><code>${p.file}</code><span>${p.msg}</span></li>`).join('');
+  document.body.className='crashed';
+  document.body.innerHTML=
+    `<section class="oops">
+       <div class="face">${runtime?'📏':'🙃'}</div>
+       <h1>${runtime
+         ? 'That clip is shorter than your ambitions.'
+         : 'This segment ends before it begins.'}</h1>
+       <p class="sub">${runtime
+         ? 'A segment is asking for audio that is not in the file.'
+         : 'One of the windows in the playlist is inside-out, so there is nothing to play.'}</p>
+       <ul>${rows}</ul>
+       <p class="fix">Fix <code>playlist.js</code> and reload. I&rsquo;ll wait &mdash; I&rsquo;m a web page.</p>
+     </section>`;
+}
+
+if (TRACK_ERRORS.length) oops(TRACK_ERRORS, false);
+else boot();
+
+function boot(){
+const SPOT_ICON=
+  `<svg viewBox="0 0 24 24" aria-hidden="true">
+     <path d="M5.6 9.9C9.6 8.4 14.9 8.8 18.4 11"/>
+     <path d="M6.9 13.2C10.2 12 14.3 12.3 17.1 14"/>
+     <path d="M8.2 16.4C10.7 15.5 13.6 15.7 15.8 17"/>
+   </svg>`;
+
+const PAL=[
+  ['#ff6b4a','#7a1f3d'], ['#ffd166','#c1440e'], ['#06d6a0','#075c50'],
+  ['#4cc9f0','#12356b'], ['#b388ff','#311b6b'], ['#ff8fb1','#6a1039'],
+  ['#f4f1de','#7a6a53'], ['#84e296','#1d4d3f'], ['#fca311','#4a2c0b'],
+  ['#5eead4','#134e4a'],
+];
+const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten'];
+const a=document.getElementById('a'), grid=document.getElementById('grid');
+let i=-1;   /* -1 = nothing loaded */
+document.getElementById('site').textContent=SITE_TITLE;
+
+TRACKS.forEach((t,k)=>{
+  const [c1,c2]=PAL[k%PAL.length];
+  const b=document.createElement('button');
+  b.className='tile';
+  b.style.background=`linear-gradient(150deg,${c1} 0%,${c2} 100%)`;
+  b.innerHTML=
+    `<span class="len">${fmt(t.dur)}</span><p class="n">${t.n}</p>`+
+    `<svg class="dial" viewBox="0 0 36 36" aria-hidden="true">
+       <circle class="coin" cx="18" cy="18" r="18"/>
+       <circle class="bg" cx="18" cy="18" r="12.5"/>
+       <circle class="fg" cx="18" cy="18" r="12.5" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+     </svg>`;
+  b.onclick=()=>{ (i===k && !a.paused) ? a.pause() : select(k,true); };
+
+  /* A sibling of the tile, not a child: an <a> inside a <button> is invalid,
+     and this way the link never swallows a play click. */
+  const link=document.createElement('a');
+  link.className='spot';
+  link.innerHTML=SPOT_ICON;
+  const url=spotifyURL(t);
+  if(url){
+    link.href=url; link.target='_blank'; link.rel='noopener noreferrer';
+    link.title='Open the real track in Spotify';
+    link.setAttribute('aria-label','Open '+(t.title||t.file)+' in Spotify');
+  }else{
+    link.setAttribute('aria-disabled','true');
+    link.title='No song set for '+t.file+' — add title or spotify to it in playlist.js';
+    link.setAttribute('aria-label','No Spotify link for this clip');
+    link.onclick=e=>e.preventDefault();
+  }
+
+  const cell=document.createElement('div');
+  cell.className='cell';
+  cell.append(b,link);
+  grid.append(cell);
+});
+const tiles=[...grid.children];   /* the cells; each holds a .tile and a .spot */
+
+function select(k,play){
+  i=(k+TRACKS.length)%TRACKS.length;
+  const t=TRACKS[i], c2=PAL[i%PAL.length][1];
+  SEG.load(a,t,{onEnd:showPaused,onBad:(bad,len)=>oops([{n:bad.n,file:bad.file,
+    msg:`asks for audio up to <b>${bad.t1}s</b>, but the file is only <b>${len.toFixed(2)}s</b> long.`}],true)});
+  document.body.style.setProperty('--a',c2);
+  document.body.style.setProperty('--b',shade(c2));
+  document.getElementById('d-title').textContent='Track '+words[i];
+  document.getElementById('d-file').textContent=t.file;
+  document.getElementById('dur').textContent=fmt(t.dur);
+  ring(0);
+  if(play) SEG.play(a);
+}
+function shade(hex){
+  const n=parseInt(hex.slice(1),16);
+  const r=Math.round(((n>>16)&255)*.45), g=Math.round(((n>>8)&255)*.45), b=Math.round((n&255)*.45);
+  return `rgb(${r},${g},${b})`;
+}
+function ring(p){
+  tiles.forEach(el=>{ const c=el.querySelector('.fg'); if(c) c.setAttribute('stroke-dashoffset',100); });
+  if(i<0) return;
+  const c=tiles[i].querySelector('.fg');
+  if(c) c.setAttribute('stroke-dashoffset',100-p*100);
+}
+function toggle(){ if(i<0) select(0,true); else a.paused?SEG.play(a):a.pause(); }
+function step(d){ select(i<0?(d>0?0:TRACKS.length-1):i+d, i<0?true:!a.paused); }
+document.getElementById('toggle').onclick=toggle;
+document.getElementById('prev').onclick=()=>step(-1);
+document.getElementById('next').onclick=()=>step(1);
+a.onplay=()=>{
+  document.body.classList.add('playing');
+  tiles.forEach((el,n)=>el.classList.toggle('on',n===i));
+  tiles[i].classList.add('beat');
+  document.getElementById('icon').innerHTML='<path d="M7 5h4v14H7zm6 0h4v14h-4z"/>';
+};
+function showPaused(){
+  if(!a.paused) return;   /* ignore the pause that a src switch fires mid-play */
+  document.body.classList.remove('playing');
+  tiles.forEach(t=>t.classList.remove('on','beat'));
+  document.getElementById('icon').innerHTML='<path d="M8 5v14l11-7z"/>';
+}
+a.onpause=showPaused;
+function paint(){
+  ring(SEG.prog(a));
+  document.getElementById('cur').textContent=fmt(SEG.now(a));
+}
+a.ontimeupdate=paint;
+
+/* Tail mode: every clip starts 3s before its t1 (or at t0, for segments shorter
+   than that). Flipping it re-cues whatever is loaded, playing or not. */
+const TAIL=3, tailBtn=document.getElementById('tail');
+/* prefixed: every project on <user>.github.io shares one localStorage origin */
+const LS='ntb:';
+function setTail(on){
+  SEG.tail(on?TAIL:0);
+  tailBtn.classList.toggle('on',on);
+  tailBtn.setAttribute('aria-checked',on?'true':'false');
+  if(i>=0){ SEG.recue(a); paint(); }
+  try{ localStorage.setItem(LS+'tail', on?'1':''); }catch(e){}
+}
+tailBtn.onclick=()=>setTail(!tailBtn.classList.contains('on'));
+
+/* Discovery mode: reveal the outbound link on every tile. */
+const discBtn=document.getElementById('discover');
+function setDiscover(on){
+  document.body.classList.toggle('discover',on);
+  discBtn.classList.toggle('on',on);
+  discBtn.setAttribute('aria-checked',on?'true':'false');
+  try{ localStorage.setItem(LS+'discover', on?'1':''); }catch(e){}
+}
+discBtn.onclick=()=>setDiscover(!discBtn.classList.contains('on'));
+
+let tail0=false, disc0=false;
+try{ tail0=localStorage.getItem(LS+'tail')==='1'; disc0=localStorage.getItem(LS+'discover')==='1'; }catch(e){}
+setTail(tail0); setDiscover(disc0);
+a.onended=showPaused;
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault(); toggle();}
+  if(e.key==='ArrowRight') step(1);
+  if(e.key==='ArrowLeft') step(-1);
+});
+}
+</script>
+</body>
+</html>

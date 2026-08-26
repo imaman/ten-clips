@@ -1,0 +1,7 @@
+# 7MB, and nothing on the page loads it
+pm-bass.m4a
+
+# local tooling / scratch
+.claude/
+.mcp.json
+.DS_Store
