@@ -73,6 +73,17 @@ window.spotifyURL = function (t) {
   return null;
 };
 
+/* The bare 22-char track id, or null. That id is all the embed can take, so a
+   title-only entry has none: a search has no player to open. */
+window.spotifyTrackId = function (t) {
+  const s = t.spotify;
+  if (!s) return null;
+  if (/^[A-Za-z0-9]{22}$/.test(s)) return s;
+  const m = /^spotify:track:([A-Za-z0-9]{22})$/.exec(s) ||
+            /open\.spotify\.com\/track\/([A-Za-z0-9]{22})/.exec(s);
+  return m ? m[1] : null;
+};
+
 /* mm:ss */
 window.fmt = function (s) {
   if (!isFinite(s) || s < 0) s = 0;

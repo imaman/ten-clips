@@ -1,8 +1,11 @@
 # Ten Clips
 
 A single static page that plays ten short audio clips as a grid of gradient
-tiles. No build step, no dependencies, no network calls — just `index.html`,
-`playlist.js`, and the audio files beside them.
+tiles. No build step and no dependencies — just `index.html`, `playlist.js`, and
+the audio files beside them. The only network call is Spotify's embed, and only
+once you ask for it.
+
+Live at **<https://imaman.github.io/ten-clips/>**.
 
 ## Running it
 
@@ -55,10 +58,39 @@ Discovery searches — set it to an artist name to sharpen them.
   `t0`, so a shorter segment plays in full). Flipping it re-cues whatever is
   loaded. The segment itself is unchanged, so the elapsed readout opens partway
   through and the dial starts near full.
-- **Discovery** — reveals a Spotify button on each tile. Clips with no
-  `spotify` or `title` show an inert button whose tooltip says what to add.
+- **Discovery** — reveals a Spotify button on each tile, which opens the real
+  recording in a strip above the dock (see below). Clips with no `spotify` or
+  `title` show an inert button whose tooltip says what to add.
 
 Both persist in `localStorage` under an `ntb:` prefix.
+
+## The Spotify strip
+
+Pressing a tile's green button loads that track into one embedded player docked
+above the controls. **It plays a 30-second preview, not the track**, unless the
+visitor is a logged-in Premium user *and* their browser lets an iframe see that
+Spotify session — Chrome and Edge do, Safari and Firefox do not, and everything
+on iOS is Safari. Nothing on this page can change that; only registering a
+Spotify app and running an OAuth flow could, which is not worth it here. So the
+*Spotify ↗* link in the strip stays: that is the reliable path to the full song.
+
+Three deliberate details:
+
+- **One embed for ten tiles.** The controller is built on the first press and
+  re-pointed with `loadUri` after that, so there is one third-party load per
+  visit rather than ten. Nothing is fetched from Spotify until a button is
+  pressed — toggling Discovery on is free.
+- **One thing plays at a time.** Starting a clip pauses the embed; the embed's
+  `playback_update` pauses the clip. The dock says which clip is loaded, the
+  strip says what the recording actually is — the embed's artwork and title are
+  the only place on the page that names the song.
+- **The button is still a link.** Cmd/ctrl/shift-click opens Spotify in a tab as
+  before, and if the embed API fails to load the plain click does too. A clip
+  with only a `title` has no track id, so it keeps opening a search — a search
+  has no player to embed.
+
+Closing the strip (`✕` or `Esc`) pauses it but keeps it, so reopening is
+instant. Turning Discovery off closes it.
 
 ## When the playlist is wrong
 
@@ -73,9 +105,10 @@ whole app with an "oops" screen naming the offending clips:
 
 ## Publishing to GitHub Pages
 
-Put `index.html` at the repo root and enable Pages on `main` / `/`. All paths
-are relative, so it works from a `/<repo>/` subpath. Note that a Pages URL is
-public — if the clips are excerpts of commercial recordings, that is worth a
-thought before pushing.
+This repo is published at <https://imaman.github.io/ten-clips/>: `index.html`
+sits at the repo root and Pages is set to deploy from `main` / `/` (Settings →
+Pages), so every push to `main` redeploys. All paths are relative, so it works
+from a `/<repo>/` subpath. Note that a Pages URL is public — if the clips are
+excerpts of commercial recordings, that is worth a thought before pushing.
 
 `pm-bass.m4a` is gitignored: 7MB and nothing loads it.
