@@ -59,31 +59,40 @@ Discovery searches — set it to an artist name to sharpen them.
   loaded. The segment itself is unchanged, so the elapsed readout opens partway
   through and the dial starts near full.
 - **Discovery** — reveals a Spotify button on each tile, which opens the real
-  recording in a strip above the dock (see below). Clips with no `spotify` or
-  `title` show an inert button whose tooltip says what to add.
+  recording in the header (see below). Clips with no `spotify` or `title` show an
+  inert button whose tooltip says what to add.
 
 Both persist in `localStorage` under an `ntb:` prefix.
 
 ## The Spotify strip
 
-Pressing a tile's green button loads that track into one embedded player docked
-above the controls. **It plays a 30-second preview, not the track**, unless the
-visitor is a logged-in Premium user *and* their browser lets an iframe see that
-Spotify session — Chrome and Edge do, Safari and Firefox do not, and everything
-on iOS is Safari. Nothing on this page can change that; only registering a
-Spotify app and running an OAuth flow could, which is not worth it here. So the
-*Spotify ↗* link in the strip stays: that is the reliable path to the full song.
+Pressing a tile's green button loads that track into one embedded player, parked
+in the empty space to the right of the title. **It plays a 30-second preview,
+not the track**, unless the visitor is a logged-in Premium user *and* their
+browser lets an iframe see that Spotify session — Chrome and Edge do, Safari and
+Firefox do not, and everything on iOS is Safari. Nothing on this page can change
+that; only registering a Spotify app and running an OAuth flow could, which is
+not worth it here. The embed's own title and logo link out to the full track, so
+the reliable path is always one click away inside the player.
 
-Three deliberate details:
+Four deliberate details:
 
 - **One embed for ten tiles.** The controller is built on the first press and
   re-pointed with `loadUri` after that, so there is one third-party load per
   visit rather than ten. Nothing is fetched from Spotify until a button is
   pressed — toggling Discovery on is free.
+- **It never moves the grid.** The strip is `position:absolute` inside the
+  header with no height reserved for it, so opening and closing it cannot shift
+  a single tile. Two earlier placements were worse: fixed above the dock covered
+  the green buttons it was opened from, and in-flow above the grid pushed the
+  second row below the fold. The most this can overlap is the empty top-right
+  corner of the first tile. Below 700px there is no dead space beside the title,
+  so it takes its own line under it instead.
 - **One thing plays at a time.** Starting a clip pauses the embed; the embed's
   `playback_update` pauses the clip. The dock says which clip is loaded, the
   strip says what the recording actually is — the embed's artwork and title are
-  the only place on the page that names the song.
+  the only place on the page that names the song, which is why the strip carries
+  no label of its own.
 - **The button is still a link.** Cmd/ctrl/shift-click opens Spotify in a tab as
   before, and if the embed API fails to load the plain click does too. A clip
   with only a `title` has no track id, so it keeps opening a search — a search

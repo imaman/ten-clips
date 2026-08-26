@@ -33,13 +33,10 @@
                linear-gradient(160deg,var(--a),var(--b));
     opacity:1; transition:opacity .8s;
   }
-  header{display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; margin-bottom:clamp(16px,2.6vw,30px)}
+  header{position:relative; display:flex; flex-wrap:wrap; align-items:baseline; gap:14px; margin-bottom:clamp(16px,2.6vw,30px)}
   /* below 940px the switches move above the dock, stacking ~116px of fixed
      furniture over the grid — clear it */
   @media (max-width:940px){ body{padding-bottom:152px} }
-  body.bside-on{padding-bottom:240px}
-  /* clears the switches, which have moved above the dock by then */
-  @media (max-width:940px){ .bside{bottom:144px} body.bside-on{padding-bottom:288px} }
   header h1{margin:0; font-size:clamp(28px,5vw,54px); font-weight:600; letter-spacing:-.035em}
   header .sub{font-size:12px; letter-spacing:.2em; text-transform:uppercase; opacity:.6}
 
@@ -111,28 +108,34 @@
   .spot[aria-disabled="true"]:hover{transform:none}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 
-  /* ---- the B-side strip: the real recording, docked over the grid ---- */
+  /* ---- the B-side strip: the real recording, in the header's dead space ----
+     Absolutely placed and given no reserved height, so opening it cannot move a
+     tile — the most it can overlap is the empty top-right corner of row one.
+     The embed brings its own card, artwork, title and outbound links, so the
+     only chrome added here is a ✕; my own label and Spotify ↗ button were
+     duplicating what is already inside the iframe. */
   .bside{
-    position:fixed; left:50%; bottom:96px; translate:-50% 0; z-index:5;
-    display:none; width:min(420px,calc(100vw - 32px)); padding:8px; border-radius:18px;
-    background:#0000004d; -webkit-backdrop-filter:blur(14px) saturate(1.2); backdrop-filter:blur(14px) saturate(1.2);
-    box-shadow:0 10px 40px -14px #000, inset 0 0 0 1px #ffffff26;
+    position:absolute; right:0; top:0; z-index:5;
+    display:none; width:min(420px,46%);
   }
   body.bside-on .bside{display:block}
-  .bside .top{display:flex; align-items:center; gap:8px; padding:1px 3px 7px}
-  .bside .who{
-    flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    font-size:11px; letter-spacing:.1em; text-transform:uppercase; opacity:.6;
+  /* holds the slot until the API swaps it for its iframe. No fixed height: the
+     embed picks its own and clipping it would cut off the controls. */
+  .bside .hold{min-height:80px; border-radius:12px; overflow:hidden; background:#00000038}
+  .bside iframe{display:block; width:100%; border:0}
+  .bside .x{
+    position:absolute; top:-9px; right:-9px; z-index:1;
+    width:24px; height:24px; padding:0; border:0; border-radius:50%; cursor:pointer;
+    background:#2a2a2ae6; color:#fff; font:inherit; font-size:10px; line-height:24px;
+    box-shadow:0 3px 10px -2px #000, inset 0 0 0 1px #ffffff2b;
   }
-  .bside a, .bside button{
-    flex:none; font:inherit; font-size:11px; color:#fff; text-decoration:none;
-    padding:3px 9px; border:0; border-radius:999px; cursor:pointer;
-    background:#ffffff1f; transition:background .15s;
+  .bside .x:hover{background:#3d3d3d}
+  /* no dead space beside the title on a phone, so it takes its own line there —
+     relative, not static, to keep the ✕ anchored to the strip */
+  @media (max-width:700px){
+    .bside{position:relative; flex:0 0 100%; width:100%; margin-top:14px}
+    .bside .x{top:-7px; right:-7px}
   }
-  .bside a:hover, .bside button:hover{background:#ffffff36}
-  /* holds the slot until the API swaps it for its iframe */
-  .bside .hold{height:80px; border-radius:12px; overflow:hidden; background:#00000038}
-  .bside iframe{display:block; width:100%; height:80px; border:0}
 
   .switches{
     position:fixed; right:18px; bottom:18px; z-index:6;
@@ -227,6 +230,10 @@
 <header>
   <h1 id="site">Ten Clips</h1>
   <span class="sub">tap a track</span>
+  <section class="bside" id="bside" aria-label="The real recording">
+    <div class="hold"><div id="b-slot"></div></div>
+    <button class="x" id="b-close" title="Close (Esc)" aria-label="Close">&#x2715;</button>
+  </section>
 </header>
 
 <div class="grid" id="grid"></div>
@@ -238,16 +245,6 @@
   <button class="big" id="toggle" title="Play / pause"><svg id="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
   <button id="next" title="Next"><svg viewBox="0 0 24 24"><path d="M15 5h2v14h-2zM5 5l9 7-9 7z"/></svg></button>
 </div>
-
-<section class="bside" id="bside" aria-label="The real recording">
-  <div class="top">
-    <span class="who" id="b-who"></span>
-    <a id="b-out" target="_blank" rel="noopener noreferrer"
-       title="Open the full track in Spotify">Spotify &#x2197;</a>
-    <button id="b-close" title="Close (Esc)" aria-label="Close">&#x2715;</button>
-  </div>
-  <div class="hold"><div id="b-slot"></div></div>
-</section>
 
 <div class="switches">
   <button class="tail" id="discover" role="switch" aria-checked="false"
@@ -435,15 +432,13 @@ discBtn.onclick=()=>setDiscover(!discBtn.classList.contains('on'));
    Playback is a 30s preview unless the visitor is a logged-in Premium user AND
    their browser lets an iframe see that session — Safari and Firefox do not —
    which is why the Spotify ↗ link never goes away. ---- */
-const BS={ctrl:null, uri:null, loading:false, dead:false};
-const bOut=document.getElementById('b-out');
+const BS={ctrl:null, uri:null, url:null, loading:false, dead:false};
 
 function bsideOpen(k){
   const t=TRACKS[k], id=spotifyTrackId(t), url=spotifyURL(t);
   /* No id, or the API never arrived: fall back to what the button used to do. */
   if(!id || BS.dead){ if(url) window.open(url,'_blank','noopener'); return; }
-  document.getElementById('b-who').textContent='Track '+words[k];
-  bOut.href=url;
+  BS.url=url;
   document.body.classList.add('bside-on');
   BS.uri='spotify:track:'+id;
   a.pause();
@@ -464,7 +459,7 @@ function bsideOpen(k){
   const sc=document.createElement('script');
   sc.src='https://open.spotify.com/embed/iframe-api/v1';
   sc.async=true;
-  sc.onerror=()=>{ BS.dead=true; bsideClose(); window.open(bOut.href,'_blank','noopener'); };
+  sc.onerror=()=>{ BS.dead=true; bsideClose(); window.open(BS.url,'_blank','noopener'); };
   document.head.append(sc);
 }
 /* Kept alive, only paused: reopening should not cost a second load. */
