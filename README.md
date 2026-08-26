@@ -16,6 +16,12 @@ behaviour**:
 python3 -m http.server 8000     # then http://localhost:8000
 ```
 
+Serve it from *inside* this folder, or hit a URL with a trailing slash. Loaded
+as `…/ten-clips?dev=true`, the browser reads the last segment as a filename and
+resolves `playlist.js` against the parent folder, which 404s and takes the whole
+page with it. A guard in `<head>` adds the missing slash and reloads, so this
+self-corrects; GitHub Pages already redirects for the same reason.
+
 Two things only work over `http(s)`:
 
 - **The exact cut at `t1`.** Playback is silenced by a Web Audio gain ramp
@@ -52,15 +58,19 @@ reordering renumbers automatically.
 `window.SITE_TITLE` sets the on-page heading. `window.ARTIST` is appended to
 Discovery searches — set it to an artist name to sharpen them.
 
-## The two toggles
+## The toggles
 
-- **Last 3s** — every clip starts at `t1 - 3` instead of `t0` (never before
-  `t0`, so a shorter segment plays in full). Flipping it re-cues whatever is
-  loaded. The segment itself is unchanged, so the elapsed readout opens partway
-  through and the dial starts near full.
 - **Discovery** — reveals a Spotify button on each tile, which opens the real
   recording in the header (see below). Clips with no `spotify` or `title` show an
   inert button whose tooltip says what to add.
+- **Last 3s** — **only on `?dev=true`.** Every clip starts at `t1 - 3` instead
+  of `t0` (never before `t0`, so a shorter segment plays in full). Flipping it
+  re-cues whatever is loaded. The segment itself is unchanged, so the elapsed
+  readout opens partway through and the dial starts near full. It is for finding
+  where a clip should end, which is nothing a visitor came here to do — so the
+  switch is hidden without the parameter, and forced off while hidden however
+  `localStorage` last left it. A dev session is also the only one that writes
+  that key, so an ordinary load cannot erase the setting `?dev=true` wants back.
 
 Both persist in `localStorage` under an `ntb:` prefix.
 
@@ -89,10 +99,10 @@ Four deliberate details:
   corner of the first tile. Below 700px there is no dead space beside the title,
   so it takes its own line under it instead.
 - **One thing plays at a time.** Starting a clip pauses the embed; the embed's
-  `playback_update` pauses the clip. The dock says which clip is loaded, the
-  strip says what the recording actually is — the embed's artwork and title are
-  the only place on the page that names the song, which is why the strip carries
-  no label of its own.
+  `playback_update` pauses the clip. The dock says which clip is loaded — by
+  number only, never by filename — and the strip says what the recording
+  actually is. The embed's artwork and title are the only place on the page that
+  names the song, which is why the strip carries no label of its own.
 - **The button is still a link.** Cmd/ctrl/shift-click opens Spotify in a tab as
   before, and if the embed API fails to load the plain click does too. A clip
   with only a `title` has no track id, so it keeps opening a search — a search

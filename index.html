@@ -3,6 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+/* Loaded as .../ten-clips?dev=true — no trailing slash — the browser treats the
+   last segment as a filename, so every relative URL below resolves one folder
+   too high and playlist.js 404s. Add the slash before the parser reaches
+   anything relative. GitHub Pages redirects for us; local servers may not. */
+(function(){
+  var p=location.pathname;
+  if(location.protocol.indexOf('http')===0 && p.slice(-1)!=='/' && !/\.[^/]+$/.test(p))
+    location.replace(p+'/'+location.search+location.hash);
+})();
+</script>
 <title>Ten Clips</title>
 <meta name="description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and jump out to the real recording.">
 <meta name="theme-color" content="#171717">
@@ -153,6 +164,7 @@
     box-shadow:0 10px 40px -14px #000, inset 0 0 0 1px #ffffff26;
     font:inherit; font-size:12px; letter-spacing:.01em;
   }
+  .tail[hidden]{display:none}   /* display:flex above would win otherwise */
   .tail .lbl{opacity:.66; transition:opacity .2s}
   .tail.on .lbl{opacity:1}
   .tail .sw{
@@ -208,11 +220,10 @@
     max-width:calc(100vw - 32px);
   }
   .dock .meta{min-width:0; overflow:hidden}
-  .dock .meta b, .dock .meta span{
+  .dock .meta b{
     display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size:13px; font-weight:600; letter-spacing:-.01em;
   }
-  .dock .meta b{font-size:13px; font-weight:600; letter-spacing:-.01em}
-  .dock .meta span{font-size:11px; opacity:.62; letter-spacing:.04em}
   .dock button{
     appearance:none; border:0; cursor:pointer; color:#fff; background:#ffffff1f;
     width:36px; height:36px; border-radius:50%; display:grid; place-content:center;
@@ -239,7 +250,7 @@
 <div class="grid" id="grid"></div>
 
 <div class="dock">
-  <div class="meta"><b id="d-title">Nothing playing</b><span id="d-file">pick any tile</span></div>
+  <div class="meta"><b id="d-title">Nothing playing</b></div>
   <span class="t"><span id="cur">0:00</span>/<span id="dur">0:00</span></span>
   <button id="prev" title="Previous"><svg viewBox="0 0 24 24"><path d="M7 5h2v14H7zm3 7 9-7v14z"/></svg></button>
   <button class="big" id="toggle" title="Play / pause"><svg id="icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
@@ -300,6 +311,8 @@ const PAL=[
 const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten'];
 const a=document.getElementById('a'), grid=document.getElementById('grid');
 let i=-1;   /* -1 = nothing loaded */
+/* Last 3s is a tool for cutting the playlist, not something a visitor wants. */
+const DEV=new URLSearchParams(location.search).get('dev')==='true';
 document.getElementById('site').textContent=SITE_TITLE;
 
 TRACKS.forEach((t,k)=>{
@@ -360,7 +373,6 @@ function select(k,play){
   document.body.style.setProperty('--a',c2);
   document.body.style.setProperty('--b',shade(c2));
   document.getElementById('d-title').textContent='Track '+words[i];
-  document.getElementById('d-file').textContent=t.file;
   document.getElementById('dur').textContent=fmt(t.dur);
   ring(0);
   if(play) SEG.play(a);
@@ -411,9 +423,12 @@ function setTail(on){
   tailBtn.classList.toggle('on',on);
   tailBtn.setAttribute('aria-checked',on?'true':'false');
   if(i>=0){ SEG.recue(a); paint(); }
-  try{ localStorage.setItem(LS+'tail', on?'1':''); }catch(e){}
+  /* Only a dev session writes this, so an ordinary load cannot erase the
+     preference that ?dev=true will want back. */
+  if(DEV) try{ localStorage.setItem(LS+'tail', on?'1':''); }catch(e){}
 }
 tailBtn.onclick=()=>setTail(!tailBtn.classList.contains('on'));
+tailBtn.hidden=!DEV;
 
 /* Discovery mode: reveal the outbound link on every tile. */
 const discBtn=document.getElementById('discover');
@@ -471,7 +486,9 @@ document.getElementById('b-close').onclick=bsideClose;
 
 let tail0=false, disc0=false;
 try{ tail0=localStorage.getItem(LS+'tail')==='1'; disc0=localStorage.getItem(LS+'discover')==='1'; }catch(e){}
-setTail(tail0); setDiscover(disc0);
+/* Off without the switch on screen, whatever is stored: a hidden toggle that
+   silently starts every clip 3s from its end has no way out. */
+setTail(DEV&&tail0); setDiscover(disc0);
 a.onended=showPaused;
 addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault(); toggle();}
