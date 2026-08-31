@@ -36,11 +36,11 @@ window.TRACKS = [
   { file: 'b.mp4', t0: 9, t1: 180.0, spotify: 'https://open.spotify.com/track/3BQHpFgAp4l80e1XslIjNI' },
   { file: 'h.mp4', t0: 10, t1: 172.0, spotify: 'https://open.spotify.com/track/1gFNm7cXfG1vSMcxPpSxec' },
   { file: 'c.mp4', t0: 6, t1: 180.0, spotify: 'https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD' },
-  { file: 'e.mp4', t0: 2, t1: 180.0, spotify: 'https://open.spotify.com/track/1raiIrqaqRAqZmQWZlLuBd' },
   { file: 'f.mp4', t0: 17, t1: 144.0, spotify: 'https://open.spotify.com/track/4BRkPBUxOYffM2QXVlq7aC' },
-  { file: 'g.mp4', t0: 0, t1: 180.0, spotify: 'https://open.spotify.com/track/6W35n1UlkvqhfMZstB4BXs' },
-  { file: 'i.mp4', t0: 0, t1: 180.0, spotify: 'https://open.spotify.com/track/3ZZ7z7hgG9PHaCW4CYyZiI' },
-  { file: 'a.mp4', t0: 17, t1: 180.0, spotify: 'https://open.spotify.com/track/3hNUYt4dMM9RhcWmty8oKF' },
+  { file: 'e.mp4', t0: 2, t1: 180.0, spotify: 'https://open.spotify.com/track/1raiIrqaqRAqZmQWZlLuBd' },
+  { file: 'g.mp4', t0: 2, t1: 180.0, spotify: 'https://open.spotify.com/track/6W35n1UlkvqhfMZstB4BXs' },
+  { file: 'i.mp4', t0: 8, t1: 180.0, spotify: 'https://open.spotify.com/track/3ZZ7z7hgG9PHaCW4CYyZiI' },
+  { file: 'a.mp4', t0: 17, t1: 47.0, spotify: 'https://open.spotify.com/track/3hNUYt4dMM9RhcWmty8oKF' },
   { file: 'j.mp4', t0: 10, t1: 180.0, spotify: 'https://open.spotify.com/track/0KBiapvpNxIP3t96GCNYF4' },
 ];
 
