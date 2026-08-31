@@ -15,11 +15,11 @@
 })();
 </script>
 <title>Ten Clips</title>
-<meta name="description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and jump out to the real recording.">
+<meta name="description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and hear the full recording behind it.">
 <meta name="theme-color" content="#171717">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Ten Clips">
-<meta property="og:description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and jump out to the real recording.">
+<meta property="og:description" content="Ten short audio clips as a tile grid. Play any of them, trim each one to the moment that matters, and hear the full recording behind it.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.92em' font-size='92'>&#x1F3B8;</text></svg>">
 <style>
   @property --a{ syntax:'<color>'; inherits:true; initial-value:#171717 }
@@ -100,11 +100,15 @@
   body.playing .cell:not(.on){opacity:.5}
   .cell.on.beat .tile::after{animation:pulse 1.8s ease-in-out infinite}
 
-  /* ---- Discovery mode: a link out to the real recording ---- */
+  /* ---- Discovery mode: plays the whole recording, not the clip ----
+     An <a> when the clip has a Spotify address a modified click can use, a plain
+     <button> when it has none — same control either way, so the rules below have
+     to undo a button's own chrome as well. */
   .spot{
     position:absolute; right:11px; bottom:11px; z-index:4;
     width:34px; height:34px; border-radius:50%; place-items:center;
     display:none; text-decoration:none;
+    appearance:none; border:0; padding:0; font:inherit; cursor:pointer;
     background:#1db954; color:#04120a;
     box-shadow:0 5px 16px -5px #000000a6, inset 0 0 0 1px #ffffff30;
     transition:transform .18s, filter .18s;
@@ -115,38 +119,9 @@
     width:20px; height:20px; fill:none;
     stroke:currentColor; stroke-width:1.9; stroke-linecap:round;
   }
-  .spot[aria-disabled="true"]{background:#ffffff30; color:#ffffffa8; cursor:not-allowed}
-  .spot[aria-disabled="true"]:hover{transform:none}
+  /* the cell whose full track is loaded, so the button that started it says so */
+  .cell.whole .spot{background:#fff; color:#0d1b12; transform:scale(1.08)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-
-  /* ---- the B-side strip: the real recording, in the header's dead space ----
-     Absolutely placed and given no reserved height, so opening it cannot move a
-     tile — the most it can overlap is the empty top-right corner of row one.
-     The embed brings its own card, artwork, title and outbound links, so the
-     only chrome added here is a ✕; my own label and Spotify ↗ button were
-     duplicating what is already inside the iframe. */
-  .bside{
-    position:absolute; right:0; top:0; z-index:5;
-    display:none; width:min(420px,46%);
-  }
-  body.bside-on .bside{display:block}
-  /* holds the slot until the API swaps it for its iframe. No fixed height: the
-     embed picks its own and clipping it would cut off the controls. */
-  .bside .hold{min-height:80px; border-radius:12px; overflow:hidden; background:#00000038}
-  .bside iframe{display:block; width:100%; border:0}
-  .bside .x{
-    position:absolute; top:-9px; right:-9px; z-index:1;
-    width:24px; height:24px; padding:0; border:0; border-radius:50%; cursor:pointer;
-    background:#2a2a2ae6; color:#fff; font:inherit; font-size:10px; line-height:24px;
-    box-shadow:0 3px 10px -2px #000, inset 0 0 0 1px #ffffff2b;
-  }
-  .bside .x:hover{background:#3d3d3d}
-  /* no dead space beside the title on a phone, so it takes its own line there —
-     relative, not static, to keep the ✕ anchored to the strip */
-  @media (max-width:700px){
-    .bside{position:relative; flex:0 0 100%; width:100%; margin-top:14px}
-    .bside .x{top:-7px; right:-7px}
-  }
 
   .switches{
     position:fixed; right:18px; bottom:18px; z-index:6;
@@ -241,10 +216,6 @@
 <header>
   <h1 id="site">Ten Clips</h1>
   <span class="sub">tap a track</span>
-  <section class="bside" id="bside" aria-label="The real recording">
-    <div class="hold"><div id="b-slot"></div></div>
-    <button class="x" id="b-close" title="Close (Esc)" aria-label="Close">&#x2715;</button>
-  </section>
 </header>
 
 <div class="grid" id="grid"></div>
@@ -259,7 +230,7 @@
 
 <div class="switches">
   <button class="tail" id="discover" role="switch" aria-checked="false"
-          title="Show a link to the real recording on each tile">
+          title="Show a button that plays the full track on each tile">
     <span class="lbl">Discovery</span><span class="sw"><i></i></span>
   </button>
   <button class="tail" id="tail" role="switch" aria-checked="false"
@@ -310,7 +281,8 @@ const PAL=[
 ];
 const words=['One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten'];
 const a=document.getElementById('a'), grid=document.getElementById('grid');
-let i=-1;   /* -1 = nothing loaded */
+let i=-1;      /* -1 = nothing loaded */
+let whole=false;   /* is the loaded segment the full recording, or the clip? */
 /* Last 3s is a tool for cutting the playlist, not something a visitor wants. */
 const DEV=new URLSearchParams(location.search).get('dev')==='true';
 document.getElementById('site').textContent=SITE_TITLE;
@@ -327,36 +299,25 @@ TRACKS.forEach((t,k)=>{
        <circle class="bg" cx="18" cy="18" r="12.5"/>
        <circle class="fg" cx="18" cy="18" r="12.5" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
      </svg>`;
-  b.onclick=()=>{ (i===k && !a.paused) ? a.pause() : select(k,true); };
+  b.onclick=()=>{ (i===k && !whole && !a.paused) ? a.pause() : select(k,true,false); };
 
-  /* A sibling of the tile, not a child: an <a> inside a <button> is invalid,
-     and this way the link never swallows a play click. */
-  const link=document.createElement('a');
+  /* A sibling of the tile, not a child: a control inside a <button> is invalid,
+     and this way it never swallows a play click. It plays the whole recording in
+     the dock below — the same player, the same controls, just the file the clip
+     was cut from. It stays an <a> wherever Spotify has an address for the track,
+     so a modified click (and a no-JS visit) still goes out to it as before. */
+  const url=spotifyURL(t);
+  const link=document.createElement(url?'a':'button');
   link.className='spot';
   link.innerHTML=SPOT_ICON;
-  const url=spotifyURL(t), id=spotifyTrackId(t);
-  if(url){
-    link.href=url; link.rel='noopener noreferrer';
-    if(id){
-      /* Stays an <a> to the track: modified clicks and no-JS still reach Spotify,
-         a plain click loads the strip instead. */
-      link.title='Play the real track on this page';
-      link.setAttribute('aria-label','Play the real recording of '+(t.title||t.file));
-      link.onclick=e=>{
-        if(e.metaKey||e.ctrlKey||e.shiftKey||e.button) return;   /* let the browser have it */
-        e.preventDefault(); bsideOpen(k);
-      };
-    }else{
-      link.target='_blank';   /* a title only: a search has no player to open */
-      link.title='Search Spotify for '+t.title;
-      link.setAttribute('aria-label','Search Spotify for '+t.title);
-    }
-  }else{
-    link.setAttribute('aria-disabled','true');
-    link.title='No song set for '+t.file+' — add title or spotify to it in playlist.js';
-    link.setAttribute('aria-label','No Spotify link for this clip');
-    link.onclick=e=>e.preventDefault();
-  }
+  link.title='Play the full track'+(url?' (⌘/ctrl-click for Spotify)':'');
+  link.setAttribute('aria-label','Play the full track of '+(t.title||t.file));
+  if(url){ link.href=url; link.rel='noopener noreferrer'; }
+  link.onclick=e=>{
+    if(url&&(e.metaKey||e.ctrlKey||e.shiftKey)) return;   /* let the browser have it */
+    e.preventDefault();
+    (i===k && whole && !a.paused) ? a.pause() : select(k,true,true);
+  };
 
   const cell=document.createElement('div');
   cell.className='cell';
@@ -365,15 +326,22 @@ TRACKS.forEach((t,k)=>{
 });
 const tiles=[...grid.children];   /* the cells; each holds a .tile and a .spot */
 
-function select(k,play){
+/* full=true loads the whole recording the clip came from instead of the clip.
+   Either way it is the same <audio> and the same dock, so everything below —
+   play/pause, prev/next, the dial, the elapsed readout — is unchanged. */
+function select(k,play,full){
   i=(k+TRACKS.length)%TRACKS.length;
+  whole=!!full;
   const t=TRACKS[i], c2=PAL[i%PAL.length][1];
-  SEG.load(a,t,{onEnd:showPaused,onBad:(bad,len)=>oops([{n:bad.n,file:bad.file,
+  SEG.load(a,whole?fullOf(t):t,{onEnd:showPaused,onBad:(bad,len)=>oops([{n:bad.n,file:bad.file,
     msg:`asks for audio up to <b>${bad.t1}s</b>, but the file is only <b>${len.toFixed(2)}s</b> long.`}],true)});
   document.body.style.setProperty('--a',c2);
   document.body.style.setProperty('--b',shade(c2));
-  document.getElementById('d-title').textContent='Track '+words[i];
-  document.getElementById('dur').textContent=fmt(t.dur);
+  document.getElementById('d-title').textContent='Track '+words[i]+(whole?' · full track':'');
+  tiles.forEach((el,n)=>el.classList.toggle('whole',whole&&n===i));
+  /* A full track's length is still unknown here — paint() fills it in once the
+     browser has the metadata. */
+  document.getElementById('dur').textContent=fmt(SEG.dur(a));
   ring(0);
   if(play) SEG.play(a);
 }
@@ -389,12 +357,11 @@ function ring(p){
   if(c) c.setAttribute('stroke-dashoffset',100-p*100);
 }
 function toggle(){ if(i<0) select(0,true); else a.paused?SEG.play(a):a.pause(); }
-function step(d){ select(i<0?(d>0?0:TRACKS.length-1):i+d, i<0?true:!a.paused); }
+function step(d){ select(i<0?(d>0?0:TRACKS.length-1):i+d, i<0?true:!a.paused, whole); }
 document.getElementById('toggle').onclick=toggle;
 document.getElementById('prev').onclick=()=>step(-1);
 document.getElementById('next').onclick=()=>step(1);
 a.onplay=()=>{
-  if(BS.ctrl) BS.ctrl.pause();   /* never two sources at once */
   document.body.classList.add('playing');
   tiles.forEach((el,n)=>el.classList.toggle('on',n===i));
   tiles[i].classList.add('beat');
@@ -407,11 +374,22 @@ function showPaused(){
   document.getElementById('icon').innerHTML='<path d="M8 5v14l11-7z"/>';
 }
 a.onpause=showPaused;
+/* dur is repainted rather than set once: a full track's length arrives with the
+   file's metadata, well after select() has already drawn the dock. */
 function paint(){
   ring(SEG.prog(a));
   document.getElementById('cur').textContent=fmt(SEG.now(a));
+  document.getElementById('dur').textContent=fmt(SEG.dur(a));
 }
 a.ontimeupdate=paint;
+a.ondurationchange=paint;
+/* The full track is derived from the clip's name, so a missing one is a naming
+   problem, not a broken playlist — say so in the dock instead of taking the
+   whole app down over a file nothing else needs. */
+a.onerror=()=>{
+  if(whole&&i>=0) document.getElementById('d-title').textContent=
+    'Track '+words[i]+' · no '+fullOf(TRACKS[i]).file;
+};
 
 /* Tail mode: every clip starts 3s before its t1 (or at t0, for segments shorter
    than that). Flipping it re-cues whatever is loaded, playing or not. */
@@ -430,59 +408,15 @@ function setTail(on){
 tailBtn.onclick=()=>setTail(!tailBtn.classList.contains('on'));
 tailBtn.hidden=!DEV;
 
-/* Discovery mode: reveal the outbound link on every tile. */
+/* Discovery mode: reveal the full-track button on every tile. */
 const discBtn=document.getElementById('discover');
 function setDiscover(on){
   document.body.classList.toggle('discover',on);
-  if(!on) bsideClose();
   discBtn.classList.toggle('on',on);
   discBtn.setAttribute('aria-checked',on?'true':'false');
   try{ localStorage.setItem(LS+'discover', on?'1':''); }catch(e){}
 }
 discBtn.onclick=()=>setDiscover(!discBtn.classList.contains('on'));
-
-/* ---- The B-side strip: one Spotify embed for the whole page, built on first
-   use. Ten iframes would be ten third-party loads for a panel that only ever
-   shows one track, so the controller is created once and re-pointed after that.
-   Playback is a 30s preview unless the visitor is a logged-in Premium user AND
-   their browser lets an iframe see that session — Safari and Firefox do not —
-   which is why the Spotify ↗ link never goes away. ---- */
-const BS={ctrl:null, uri:null, url:null, loading:false, dead:false};
-
-function bsideOpen(k){
-  const t=TRACKS[k], id=spotifyTrackId(t), url=spotifyURL(t);
-  /* No id, or the API never arrived: fall back to what the button used to do. */
-  if(!id || BS.dead){ if(url) window.open(url,'_blank','noopener'); return; }
-  BS.url=url;
-  document.body.classList.add('bside-on');
-  BS.uri='spotify:track:'+id;
-  a.pause();
-  if(BS.ctrl){ BS.ctrl.loadUri(BS.uri); BS.ctrl.play(); return; }
-  if(BS.loading) return;   /* the pending controller will come up on BS.uri */
-  BS.loading=true;
-  /* The API calls this the moment its script runs. */
-  window.onSpotifyIframeApiReady=API=>{
-    API.createController(document.getElementById('b-slot'),
-      {uri:BS.uri, width:'100%', height:80},
-      c=>{
-        BS.ctrl=c;
-        c.addListener('playback_update',e=>{ if(e&&e.data&&!e.data.isPaused) a.pause(); });
-        c.play();   /* best effort: the click that asked for it is over, so a
-                       mobile autoplay policy may leave it cued instead */
-      });
-  };
-  const sc=document.createElement('script');
-  sc.src='https://open.spotify.com/embed/iframe-api/v1';
-  sc.async=true;
-  sc.onerror=()=>{ BS.dead=true; bsideClose(); window.open(BS.url,'_blank','noopener'); };
-  document.head.append(sc);
-}
-/* Kept alive, only paused: reopening should not cost a second load. */
-function bsideClose(){
-  document.body.classList.remove('bside-on');
-  if(BS.ctrl) BS.ctrl.pause();
-}
-document.getElementById('b-close').onclick=bsideClose;
 
 let tail0=false, disc0=false;
 try{ tail0=localStorage.getItem(LS+'tail')==='1'; disc0=localStorage.getItem(LS+'discover')==='1'; }catch(e){}
@@ -492,7 +426,7 @@ setTail(DEV&&tail0); setDiscover(disc0);
 a.onended=showPaused;
 addEventListener('keydown',e=>{
   if(e.code==='Space'){e.preventDefault(); toggle();}
-  if(e.key==='Escape') bsideClose();
+  if(e.key==='Escape' && whole) select(i,!a.paused,false);   /* back to the clip */
   if(e.key==='ArrowRight') step(1);
   if(e.key==='ArrowLeft') step(-1);
 });

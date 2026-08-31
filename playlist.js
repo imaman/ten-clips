@@ -6,9 +6,13 @@
  *          "play the whole clip"; lower it to trim the tail.
  *   t0   : optional — where the segment starts. Defaults to 0.
  *   title / spotify : optional — what the clip actually is, for Discovery mode.
- *          Give `spotify` a track URL, a spotify:track: URI, or a bare 22-char
- *          track id and the button links straight to it. Otherwise `title` is
- *          used to open a Spotify search. With neither, the button is inert.
+ *          Discovery's button plays the full recording in the page's own player;
+ *          `spotify` (a track URL, a spotify:track: URI, or a bare 22-char id)
+ *          and `title` only decide where a ⌘/ctrl-click goes instead — the track
+ *          itself, or a Spotify search for the title. With neither, that
+ *          modified click does nothing and the plain click still plays.
+ *   fullFile : optional — the full recording's filename. Defaults to the clip's
+ *          with a '0.m4a' tail, so 'x.mp4' plays back in full from 'x0.m4a'.
  *
  * Only the t0…t1 window is ever played, and the page shows the segment's
  * length (t1 - t0), not the file's. Order below is the playing order.
@@ -28,16 +32,16 @@ window.ARTIST = '';
      { file: 'a-03.mp4', t1: 12.05, title: 'Something' },
      { file: 'b-07.mp4', t1: 16.74, spotify: 'https://open.spotify.com/track/xxxxxxxxxxxxxxxxxxxxxx' }, */
 window.TRACKS = [
-  { file: 'a-03.mp4', t1: 12.05, spotify: 'https://open.spotify.com/track/3hNUYt4dMM9RhcWmty8oKF' }, // 3 day tripper
-  { file: 'b-07.mp4', t1: 14.80, spotify: 'https://open.spotify.com/track/3BQHpFgAp4l80e1XslIjNI' }, // 7 yday
-  { file: 'c-09.mp4', t1:  9.24, spotify: 'https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD' }, // 9 come together
-  { file: 'd-02.mp4', t1: 10.00, spotify: 'https://open.spotify.com/track/5xYC2ZJJ9TMJL8BOl85O2R' }, // 2 bulldog
-  { file: 'f-04.mp4', t1: 12.00, spotify: 'https://open.spotify.com/track/4BRkPBUxOYffM2QXVlq7aC' }, // 4 taxman
-  { file: 'e-08.mp4', t0: 15.00, t1: 31.72, spotify: 'https://open.spotify.com/track/1raiIrqaqRAqZmQWZlLuBd' }, // 8 lady madonna
-  { file: 'h-01.mp4', t1: 24.00, spotify: 'https://open.spotify.com/track/1gFNm7cXfG1vSMcxPpSxec' }, // 1 obladi oblada
-  { file: 'g-06.mp4', t1:  7.50, spotify: 'https://open.spotify.com/track/6W35n1UlkvqhfMZstB4BXs' }, // 6 mr kite
-  { file: 'i-05.mp4', t1:  4.74, spotify: 'https://open.spotify.com/track/3ZZ7z7hgG9PHaCW4CYyZiI' }, // 5 rain
-  { file: 'j-10.mp4', t1: 9.90, spotify: 'https://open.spotify.com/track/0KBiapvpNxIP3t96GCNYF4' }, // 10 i saw here standing there
+  { file: 'd.mp4', t0: 16, t1: 180.0, spotify: 'https://open.spotify.com/track/5xYC2ZJJ9TMJL8BOl85O2R' },
+  { file: 'b.mp4', t0: 9, t1: 180.0, spotify: 'https://open.spotify.com/track/3BQHpFgAp4l80e1XslIjNI' },
+  { file: 'h.mp4', t0: 10, t1: 172.0, spotify: 'https://open.spotify.com/track/1gFNm7cXfG1vSMcxPpSxec' },
+  { file: 'c.mp4', t0: 6, t1: 180.0, spotify: 'https://open.spotify.com/track/2EqlS6tkEnglzr7tkKAAYD' },
+  { file: 'e.mp4', t0: 2, t1: 180.0, spotify: 'https://open.spotify.com/track/1raiIrqaqRAqZmQWZlLuBd' },
+  { file: 'f.mp4', t0: 17, t1: 144.0, spotify: 'https://open.spotify.com/track/4BRkPBUxOYffM2QXVlq7aC' },
+  { file: 'g.mp4', t0: 0, t1: 180.0, spotify: 'https://open.spotify.com/track/6W35n1UlkvqhfMZstB4BXs' },
+  { file: 'i.mp4', t0: 0, t1: 180.0, spotify: 'https://open.spotify.com/track/3ZZ7z7hgG9PHaCW4CYyZiI' },
+  { file: 'a.mp4', t0: 17, t1: 180.0, spotify: 'https://open.spotify.com/track/3hNUYt4dMM9RhcWmty8oKF' },
+  { file: 'j.mp4', t0: 10, t1: 180.0, spotify: 'https://open.spotify.com/track/0KBiapvpNxIP3t96GCNYF4' },
 ];
 
 
@@ -73,15 +77,19 @@ window.spotifyURL = function (t) {
   return null;
 };
 
-/* The bare 22-char track id, or null. That id is all the embed can take, so a
-   title-only entry has none: a search has no player to open. */
-window.spotifyTrackId = function (t) {
-  const s = t.spotify;
-  if (!s) return null;
-  if (/^[A-Za-z0-9]{22}$/.test(s)) return s;
-  const m = /^spotify:track:([A-Za-z0-9]{22})$/.exec(s) ||
-            /open\.spotify\.com\/track\/([A-Za-z0-9]{22})/.exec(s);
-  return m ? m[1] : null;
+/* The whole recording behind a clip, as a segment SEG can load: 'x.mp4' plays
+   back in full from 'x0.m4a' unless the entry names the file itself.
+
+   t1 is Infinity because the end of a file is not knowable until the browser has
+   read its metadata; SEG resolves it there and writes it back. That is also why
+   this is built once and cached on the entry — reopening a full track should not
+   start from "length unknown" a second time. */
+window.fullOf = function (t) {
+  if (!t._full) t._full = {
+    file: t.fullFile || t.file.replace(/\.[^.\/]+$/, '') + '0.m4a',
+    t0: 0, t1: Infinity, dur: Infinity, n: t.n, full: true,
+  };
+  return t._full;
 };
 
 /* mm:ss */
@@ -111,8 +119,9 @@ window.SEG = (function () {
   let TAIL = 0;                 // 0 = start at t0; N = start N seconds before t1
 
   /* Where playback begins for a track. Never earlier than t0, so a segment
-     shorter than TAIL just plays in full. */
-  function cue(t) { return TAIL ? Math.max(t.t0, t.t1 - TAIL) : t.t0; }
+     shorter than TAIL just plays in full. TAIL is a tool for finding where a clip
+     should end, so it is ignored for a full track, which has no end to find. */
+  function cue(t) { return TAIL && !t.full ? Math.max(t.t0, t.t1 - TAIL) : t.t0; }
 
   /* createMediaElementSource on a tainted element outputs silence, so only build
      the graph over http(s). Created lazily, inside the click that starts playback,
@@ -145,6 +154,10 @@ window.SEG = (function () {
     p.cancelScheduledValues(now);
     p.setValueAtTime(p.value, now);
     p.linearRampToValueAtTime(1, now + FADE);      // fade in, or recover from a stale ramp
+    /* An unresolved end has no cut to schedule — only the fade-in above matters,
+       and it must still run to lift the gain a previous segment left at 0.
+       load()'s ready() re-arms once metadata gives t1 a number. */
+    if (!isFinite(t.t1)) return;
     const left = (t.t1 - a.currentTime) / (a.playbackRate || 1);
     const cut = Math.max(now + 2 * FADE, now + left);
     p.setValueAtTime(1, cut - FADE);
@@ -182,6 +195,7 @@ window.SEG = (function () {
   function check(a) {
     const st = S.get(a); if (!st) return true;
     const t = st.t, len = a.duration;
+    if (!isFinite(t.t1)) return true;                 // asks for the whole file, so it fits
     if (!isFinite(len) || len <= 0) return true;      // nothing to compare against yet
     if (t.t1 <= len + SLACK) return true;
     a.pause();
@@ -198,6 +212,11 @@ window.SEG = (function () {
       S.set(a, st);
       a.src = t.file;
       const ready = function () {
+        /* "to the end of the file" becomes a number the moment there is one, so
+           dur/prog/arm downstream never have to know it was ever open-ended. */
+        if (!isFinite(t.t1) && isFinite(a.duration) && a.duration > 0) {
+          t.t1 = a.duration; t.dur = t.t1 - t.t0;
+        }
         if (!check(a)) return;
         seek(a, cue(t));
         if (!a.paused) arm(a);     // the pre-metadata arm in play() was t0 seconds off

@@ -2,8 +2,8 @@
 
 A single static page that plays ten short audio clips as a grid of gradient
 tiles. No build step and no dependencies — just `index.html`, `playlist.js`, and
-the audio files beside them. The only network call is Spotify's embed, and only
-once you ask for it.
+the audio files beside them. Nothing is fetched from a third party; the page
+makes no network call it does not serve itself.
 
 Live at **<https://imaman.github.io/ten-clips/>**.
 
@@ -48,8 +48,12 @@ window.TRACKS = [
 | `file` | yes | audio file, relative to this folder |
 | `t1` | **yes** | where the segment ends, in seconds into the file |
 | `t0` | no | where it starts. Defaults to `0` |
+| `fullFile` | no | the whole recording. Defaults to `file` with a `0.m4a` tail |
 | `spotify` | no | track URL, `spotify:track:…` URI, or bare 22-char id |
 | `title` | no | used for a Spotify *search* when `spotify` is absent |
+
+`spotify` and `title` no longer decide what the green button *does* — only where
+a ⌘/ctrl-click on it goes.
 
 Only the `t0…t1` window is ever played, and the tile shows that window's length
 (`t1 - t0`), never the file's. Track numbers are derived from array position, so
@@ -60,9 +64,8 @@ Discovery searches — set it to an artist name to sharpen them.
 
 ## The toggles
 
-- **Discovery** — reveals a Spotify button on each tile, which opens the real
-  recording in the header (see below). Clips with no `spotify` or `title` show an
-  inert button whose tooltip says what to add.
+- **Discovery** — reveals a green button on each tile that plays the whole
+  recording the clip was cut from, in the dock at the bottom (see below).
 - **Last 3s** — **only on `?dev=true`.** Every clip starts at `t1 - 3` instead
   of `t0` (never before `t0`, so a shorter segment plays in full). Flipping it
   re-cues whatever is loaded. The segment itself is unchanged, so the elapsed
@@ -74,42 +77,41 @@ Discovery searches — set it to an artist name to sharpen them.
 
 Both persist in `localStorage` under an `ntb:` prefix.
 
-## The Spotify strip
+## The full track
 
-Pressing a tile's green button loads that track into one embedded player, parked
-in the empty space to the right of the title. **It plays a 30-second preview,
-not the track**, unless the visitor is a logged-in Premium user *and* their
-browser lets an iframe see that Spotify session — Chrome and Edge do, Safari and
-Firefox do not, and everything on iOS is Safari. Nothing on this page can change
-that; only registering a Spotify app and running an OAuth flow could, which is
-not worth it here. The embed's own title and logo link out to the full track, so
-the reliable path is always one click away inside the player.
+Every clip is an excerpt of a longer recording that sits beside it: `a.mp4` was
+cut from `a0.m4a`. Discovery's green button plays that file — in the page's own
+dock, with the same play/pause, prev/next, dial and elapsed readout as a clip.
+The dock's title says `Track Three · full track` so the two are never confused,
+and the button turns white while its track is the one loaded. Press it again to
+pause, press the tile to drop back to the clip, or hit `Esc`.
 
-Four deliberate details:
+The naming rule is the whole configuration: strip the clip's extension, append
+`0.m4a`. An entry can override it with `fullFile` when its recording is called
+something else.
 
-- **One embed for ten tiles.** The controller is built on the first press and
-  re-pointed with `loadUri` after that, so there is one third-party load per
-  visit rather than ten. Nothing is fetched from Spotify until a button is
-  pressed — toggling Discovery on is free.
-- **It never moves the grid.** The strip is `position:absolute` inside the
-  header with no height reserved for it, so opening and closing it cannot shift
-  a single tile. Two earlier placements were worse: fixed above the dock covered
-  the green buttons it was opened from, and in-flow above the grid pushed the
-  second row below the fold. The most this can overlap is the empty top-right
-  corner of the first tile. Below 700px there is no dead space beside the title,
-  so it takes its own line under it instead.
-- **One thing plays at a time.** Starting a clip pauses the embed; the embed's
-  `playback_update` pauses the clip. The dock says which clip is loaded — by
-  number only, never by filename — and the strip says what the recording
-  actually is. The embed's artwork and title are the only place on the page that
-  names the song, which is why the strip carries no label of its own.
-- **The button is still a link.** Cmd/ctrl/shift-click opens Spotify in a tab as
-  before, and if the embed API fails to load the plain click does too. A clip
-  with only a `title` has no track id, so it keeps opening a search — a search
-  has no player to embed.
+Four details worth knowing:
 
-Closing the strip (`✕` or `Esc`) pauses it but keeps it, so reopening is
-instant. Turning Discovery off closes it.
+- **It is one player, not two.** The full track is loaded into the same
+  `<audio>` element as the clips, as a segment that happens to run from `0` to
+  the end of the file. So there is no second source to keep in sync, and nothing
+  to mute when the other one starts — that problem no longer exists.
+- **`t1` is not known when the segment loads.** A clip's end is authored in
+  `playlist.js`; a full track's is whatever the file turns out to be, which the
+  browser only knows once it has read the metadata. `SEG` loads it as
+  `t1: Infinity` and resolves it there, so the dock's total appears a moment
+  after the title does. The length check that guards clips is skipped for it —
+  a segment asking for the whole file cannot overrun it.
+- **Last 3s does not apply.** It exists to find where a clip should end, and a
+  full track has no end to find, so it cues from the start regardless.
+- **The button is still a link.** Where the entry has a `spotify` address (or a
+  `title` to search for), ⌘/ctrl/shift-click still opens Spotify in a new tab,
+  exactly as before. Entries with neither render a plain `<button>` instead of an
+  `<a>` — same control, one fewer thing it can do.
+
+If the `0.m4a` file is missing, the dock says so (`Track Three · no c0.m4a`)
+rather than replacing the page with the oops screen: a mis-derived filename is
+not a broken playlist, and every clip still plays.
 
 ## When the playlist is wrong
 
@@ -130,4 +132,5 @@ Pages), so every push to `main` redeploys. All paths are relative, so it works
 from a `/<repo>/` subpath. Note that a Pages URL is public — if the clips are
 excerpts of commercial recordings, that is worth a thought before pushing.
 
-`pm-bass.m4a` is gitignored: 7MB and nothing loads it.
+`pm-bass.m4a` is gitignored: 7MB and nothing loads it. The `*0.m4a` full
+recordings are not — the green button needs them served alongside the clips.
